@@ -1,0 +1,97 @@
+import matplotlib.pyplot as plt     # All the necessary modules, some are dehighlighted in VS Code but they will be used. 
+import numpy as np
+import sympy as sp
+from numpy import *
+from sympy import *
+import re  
+import time
+import random
+from tkinter import *
+
+
+
+def graph(): 
+
+    ax.plot(x, y)
+    ax.set_aspect('equal')
+
+    ax.grid(True, which='both')
+
+    
+    ax.spines['left'].set_position('zero')     # Set the ticks for x and y axis.
+    ax.spines['right'].set_color('none')
+    ax.yaxis.tick_left()
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['top'].set_color('none')
+    ax.xaxis.tick_bottom()
+
+    
+    plt.title('f(x) = '+str(original_entry))     # Add title and labels.
+    ax.set_xlabel('x', loc='right')
+    ax.set_ylabel('y', loc='top')
+    plt.show()
+
+
+def error_check():
+    global user_function,ax,x,y,error_label,original_entry
+
+   
+    user_function = function_entry.get()      # Get user input as a function expression.
+    original_entry = function_entry.get()     # Get a copy of the user's original input. 
+    if plt:
+        plt.close()
+
+    try:
+       
+        if not user_function:      # If the user didn't input anything, assume he meant f(x)=0.
+            user_function=str(0)
+       
+        user_function = re.sub(r'(\d+)([a-zA-Z_]+)', r'\1*\2', user_function)      # Substitute multiplication with * symbols for use in numpy.
+       
+        user_function = user_function.replace("^", "**")      # Substitute exponentiation with ** symbols for use in numpy.
+
+        x = np.linspace(-10, 10, 300)     # Graph settings.
+        fig, ax = plt.subplots(figsize=(7, 7))
+
+        if 'x' not in user_function:     # Check if 'x' is in the user's function.
+            y = [float(user_function) for _ in x]     # Create a constant function.
+        else:
+            y = eval(user_function)
+        
+        error_label.config(text="")     # Clear error label, no error present. 
+
+        return graph()     # Graph the function.
+
+    except Exception:
+        error_label.config(text="Unrecognized function, check notation.",fg='red')     # Inform user they have not inputted a valid function.
+        function_entry.delete(0,END)
+
+    
+
+
+
+
+def main():
+    global function_entry,error_label
+
+    root.title("Input a function")
+    root.geometry("500x100+0+100")
+
+
+    function_label=Label(root,text='f(x)=')
+    function_label.place(x=0,y=0)
+
+    function_entry=Entry(root,width=20)
+    function_entry.place(x=30,y=0)
+
+    graph_button=Button(root,text='Graph',command=error_check)
+    graph_button.place(x=165,y=0)
+
+    error_label=Label(root,text="") 
+    error_label.place(x=220,y=0)
+
+    root.resizable(0,0)
+    root.mainloop()
+
+root = Tk()
+main()
