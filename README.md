@@ -2,4 +2,4 @@ The game is based around teaching the user how to formulate and graph mathematic
 
 The folder "Draft 1", done during the 2 week holidays between terms 1 and 2, mainly focuses on developing purely the functionality behind my game (the back-end) by making it work as intended, using tkinter and matplotlib. 
 
-The folder "Draft 2", done during term 2 after holidays, will focus on developing the graphics and visually appealing user interface behind my game (the front-end), maybe sticking with tkinter and matplotlib but maybe also incoporating pygame as tkinter becomes very ploddy and slow when running continuous systems.
+The folder "Draft 2", done during term 2 after holidays, will focus on developing the graphics and visually appealing user interface behind my game (the front-end), maybe sticking with tkinter and matplotlib but maybe also incoporating pygame as tkinter becomes very ploddy and slow when running continuous systems, which impacts the aesthetics.
