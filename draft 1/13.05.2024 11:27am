@@ -14,6 +14,11 @@ from playsound import playsound
 import os
 import math
 
+'''
+Draft 1, this program focuses just on the functionality and making sure everything works. 
+Draft 2 in the future will be about graphicalising my program and making it visually appealing.
+'''
+
 top=None     # Begin with no toplevel window.
 show_coordinates=True     # Coordinates are shown by default.
 coins_counter=0     
