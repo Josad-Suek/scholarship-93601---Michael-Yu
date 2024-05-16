@@ -1,0 +1,538 @@
+import matplotlib.pyplot as plt     # All the necessary modules, some are dehighlighted in VS Code but they will be used. 
+import matplotlib.patheffects as pe
+import numpy as np
+import sympy as sym
+from numpy import *
+from sympy import *
+import re  
+import time
+import random
+from tkinter import *
+from threading import *
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from playsound import playsound
+import os
+import math
+import winsound
+
+# MAKE ERROR MESSSAGE POP UP IN NEW WINDOW FOR EAXCELLENCE
+
+
+#uncomment this line below to play music
+#winsound.PlaySound(os.getcwd()+'/Sounds/Josad ost.wav', winsound.SND_ASYNC | winsound.SND_ALIAS )
+
+
+#playsound(os.getcwd()+'/Sounds/Josad ost.wav', False)
+
+
+'''
+Draft 1, this program focuses just on the functionality and making sure everything works. 
+Draft 2 in the future will be about graphicalising my program and making it visually appealing.
+'''
+
+top=None     # Begin with no toplevel window.
+show_coordinates=True     # Coordinates are shown by default.
+coins_counter=0     
+tries_counter=-1
+points_intersection=0
+
+
+plt.figure()     # For some reason I need to graph nothing then immediately close it otherwise matplotlib starts glitching.
+plt.close()
+
+'''
+Class: Seed generates a graph at a random location on the x/y-plane, of random size. 
+Begins by generating the upper and lower domains (x axis length) ranging from -200 to 200.
+Then generates the upper and lower ranges (y axis length) initially equal to its domain, this is so the graph is to scale.
+var.offset generates a random value from 0 to the midpoint of the y axis length.
+This value is used to offset the new upper and lower ranges by a difference of var.offset, producing a randomly generated seed.
+'''
+
+class Seed:   # Randomly generate blank graph.
+    def __init__(self,domain_lower,domain_upper,range_lower,range_upper):
+        self.domain_lower=domain_lower
+        self.domain_upper=domain_upper
+        self.range_lower=range_lower
+        self.range_upper=range_upper
+
+S1=Seed(round(random.randint(-200,0),-1),round(random.randint(0,200),-1),None,None)     # Seed 1.
+
+flip1=bool(random.getrandbits(1));flip2=bool(random.getrandbits(1))   
+
+domain_midpoint=int((abs(S1.domain_lower)+S1.domain_upper)/2)
+
+print(vars(S1))
+print("domain_midpoint",domain_midpoint)
+
+try:
+    offset=random.randint(0,domain_midpoint-10)
+except Exception:
+    offset=0     # Sometimes seed can get unlucky and will spawn origin off the grid, in this case, make offset 0 to prevent axis from going out of view.
+
+S1.range_lower=-domain_midpoint;S1.range_upper=domain_midpoint
+
+if flip2==True:     # offset y axis for more randomness.
+    S1.range_lower-=offset;S1.range_upper-=offset
+else:
+    S1.range_lower+=offset;S1.range_upper+=offset
+
+
+
+print(vars(S1))
+print(offset)
+
+
+'''
+Class: Node generates random points on the graph.
+generates P nodes: the start and end points,
+generates C nodes: the 'coins' to be collected,
+the graph is divided vertically into 7 even sections, each node having its own area to randomnly spawn in. 
+left end of graph is 0th section, right end is 7th section.
+
+'''
+class Node:    # Randomly generate nodes.
+    def __init__(self,x_point,y_point,chance):
+        self.x_point=x_point
+        self.y_point=y_point
+        self.chance=chance
+
+def area(section):     # generate the area for node to randomnly spawn based of the nth section of the graph.
+    return round(int(S1.domain_lower+int(section)*(abs(S1.domain_lower)+S1.domain_upper)/7))
+
+boolean=[True,False]     # Spawn node? -> yes/no (66% chance yes, 33% no)
+def spawn_node(start,end):     # Function to generate 2 points, 5 coins in their dedicated sections of the graph. e.g., 1/7th section is first section, 7/7th is last.
+    return Node(random.randint(area(start),area(end)),random.randint(S1.range_lower,S1.range_upper),(random.choices(boolean,weights=[2,1]))[0])     # 'weights' adjusts the probability of a coin spawning. currently is set to 2/3.
+
+P0=spawn_node(0,1);P0.chance=True;P0.x_point+=1  # start and end points: P0,P1 must spawn.
+P1=spawn_node(6,7);P1.chance=True;P1.x_point-=1  # place these 1 away from the borders so they don't get cut off.
+C1=spawn_node(1,2)
+C2=spawn_node(2,3)
+C3=spawn_node(3,4)
+C4=spawn_node(4,5)
+C5=spawn_node(5,6)
+#P1.y_point=P0.y_point################
+
+coins_list=[C1,C2,C3,C4,C5]
+points=[P0,P1]
+
+for obj in coins_list:     # If node's spawn chance is false, then don't spawn.
+    if obj.chance==False:
+        obj.y_point=9999
+        
+
+print(vars(P0))
+print(vars(P1))
+print(vars(C1))
+print(vars(C2))
+print(vars(C3))
+print(vars(C4))
+print(vars(C5))
+
+
+class Score:     # Keep track of player's score.
+    def __init__(self,coins,goal,tries,score):
+        self.coins=coins
+        self.goal=goal
+        self.tries=tries
+        self.score=score
+
+Sc1=Score(0,"",-1,0)     # Tries start at -1 because each time program is run, +=1. 
+
+def calculate_score():
+    if Sc1.goal=="Goal: Not accomplished":     # If player's function doesn't meet start/end points, score is 0.
+        return 0
+    else:     # Calculate score, coins is parabolic growth; the more the better. Tries is divided from sum; the more the worse. 5 is added by default for meeting goal.
+        return Sc1.coins**3+5+math.ceil(10/Sc1.tries)
+
+
+
+class Redzone:
+    def __init__(self,x_lower,x_upper,y_lower,y_upper):
+        self.x_lower=x_lower
+        self.x_upper=x_upper
+        self.y_lower=y_lower
+        self.y_upper=y_upper
+
+
+redzones=[]
+
+for obj in coins_list:     # If a coin hasn't spawned in an area, then make that a potential area for redzone to spawn.
+    if obj.chance==False:
+        redzones.append(obj)
+
+try:
+
+    redzones[0]=random.choice(redzones)     # Pick a random potential spawn area in the redzones list, then make that the 
+    print(redzones[0])
+    R1=Redzone(redzones[0].x_point,redzones[0].x_point,random.randint(-10,10),random.randint(-10,10))
+    print(R1.x_lower,R1.x_upper,R1.y_lower,R1.y_upper)
+
+except Exception:     # If there is no room for redzone to spawn, don't spawn it.
+    R1=Redzone(69420,69420,69420,69420)
+
+
+
+
+
+
+
+def horizontal_segment(division):     # Gives the length of the width of the graph when divided into specific segments. 
+    return (abs(S1.domain_upper)+abs(S1.domain_lower))/division
+
+
+
+
+
+def music():
+    while True:     # Replace this with "pass" if don't want music.
+       playsound(os.getcwd()+'/Sounds/Josad ost.mp3')
+
+
+
+
+def graph_function(): 
+    
+    global fig,top, show_coordinates,canvas,coins,coins_counter,user_function,tries_counter,points,points_intersection,coins_list
+
+    Sc1.coins=0     # Update score.
+    Sc1.tries+=1
+    tries_counter_label.config(text=Sc1.tries)  
+    points_intersection=0
+
+
+    x = np.linspace(S1.domain_lower, S1.domain_upper, 300)     # Domain.
+    fig, ax = plt.subplots(figsize=(7, 7))     # X by Y graph size.
+
+    if 'x' not in user_function:     # Check if 'x' is in the user's function.
+        y = [float(user_function) for _ in x]     # Create a constant function.
+    else:
+        y = eval(user_function)
+
+
+    ax.set_aspect(aspect=1)     # Aspect ratio, larger number -> longer y axis.
+    ax.grid(True, which='both')
+    ax.spines['left'].set_position('zero')     # Set the ticks for x and y axis.
+    ax.spines['right'].set_color('none')
+    ax.yaxis.tick_left()
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['top'].set_color('none')
+    ax.xaxis.tick_bottom()
+    ax.minorticks_on()
+    
+    #plt.grid(visible=True, which='major', color='b', linestyle='-')     # Set gridlines. 
+    plt.xlim(S1.domain_lower-0.2, S1.domain_upper+0.2)     # Domain and range of graph.
+    plt.ylim(S1.range_lower-0.2,S1.range_upper+0.2)     # Additional offsets is so first and last gridlines won't get cutoff.
+    plt.grid(visible=True, which='minor', color='grey', linestyle='-',linewidth=0.2)
+
+
+
+    def plot_nodes(node,alignment,offset,marker,colour,label,size,width):     # Quick function which plots and labels all nodes, and is fully customizable using its arguments. 
+
+        plt.plot(node.x_point,node.y_point,marker=marker,markersize=size,color=colour,markeredgewidth=width) 
+        
+        if show_coordinates==True:     # If coordinates are on, print them. 
+            plt.text(node.x_point+int(offset),node.y_point+horizontal_segment(20),label+' ('+str(node.x_point)+','+str(node.y_point)+')',color='orange',fontsize='9',horizontalalignment=alignment,fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')])
+        
+        else:     # If coordiantes are off, only label the start and end nodes.
+            plt.text(P0.x_point,P0.y_point+horizontal_segment(30),"Start",color='orange',fontsize='9',horizontalalignment="right",fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')])
+            plt.text(P1.x_point,P1.y_point+horizontal_segment(30),"End",color='orange',fontsize='9',horizontalalignment="left",fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')])
+
+
+    def function(input):     # treat user's function as a python function, brackets have been forced in because numpy cannot do bedmas. 
+       return user_function.replace("x","("+input+")")
+    
+
+    plot_nodes(P0,"right",1,'x',"blue","Start",15,5)    # Plot points and coins.
+    plot_nodes(P1,"left",-1,'x',"blue","End",15,5)     # With Size set to 15, 675/32 (approx. 21.1) Points lined up horizontally fits the horizontal length of graph.
+    plot_nodes(C1,"center",0,'o',"yellow","",30,1)     # With Size set to 30, 13.5 coins lined up horizontally fits the horizontal length of graph. 
+    plot_nodes(C2,"center",0,'o',"yellow","",30,1)
+    plot_nodes(C3,"center",0,'o',"yellow","",30,1)
+    plot_nodes(C4,"center",0,'o',"yellow","",30,1)
+    plot_nodes(C5,"center",0,'o',"yellow","",30,1)
+
+
+    
+    def find_points_intersection(node,alignment,offset,label):
+        global points_intersection
+
+        '''
+        This function checks to see if the curve of f(x) passes through the start and end points.
+        Finds f(x), where x will range from the left-edge X-coordinate of point to the right-edge X-coordinate of point, increasing in 0.1 every time for increased accuracy.
+        If at any point, f(x) falls between the lower Y-coordinate of point and upper Y-coordinate of point, then f(X) has 'passed through' this point.
+        The division constant for horizontal_segment(division) is 675/32 which gives the relative width/height of the point. input here is 675/16 to get the halfway length from centre. 
+        '''
+
+        for i in range(round(-horizontal_segment(675/16)*10),round(horizontal_segment(675/16)*10)):    # Check if the curve is in the vicinity of the x width of coin.  
+                
+            try:
+                if node.y_point-horizontal_segment(675/16) <= eval(function(str(node.x_point+i/10))) <= node.y_point+horizontal_segment(675/16):     # if curve passes through start and end points, make it green. 
+                    plot_nodes(node,str(alignment),offset,'x',"green",str(label),15,5)    # Plot points and coins. 
+                    points_intersection+=1 
+                    break    
+
+            except Exception:    # This occurs when e.g., f(x)=5/x, as function checks the value of f(0) will lead to division by zero. In this case, pass it.
+                pass
+
+            # Remember to put brackets around function argument because numpy doesn't do BEDMAS and will treat e.g.,  f(-x)=--x^2, not f(-x)=-(-x)^2.
+    
+                
+    find_points_intersection(P0,"right",1,"Start")
+    find_points_intersection(P1,"left",-1,"End")
+
+    if points_intersection==2:
+        ax.plot(x, y,color='green')
+        Sc1.goal="Goal: Accomplished!"     # Goal accomplished
+    else:
+        ax.plot(x, y,color='red')
+        Sc1.goal="Goal: Not accomplished"     # Goal not accomplished
+
+    goal_label.config(text=Sc1.goal)
+    
+
+   
+    for obj in coins_list:     # If the coordinates of the coins pass through the function, the user has 'collected' it.
+        
+        for i in range(round(-horizontal_segment(26)*10),round(horizontal_segment(26)*10)):    # Check if the curve is in the vicinity of the x width of coin. 
+            
+            #print("\nobj:")
+            #print(obj)
+            #print("obj.y_point-10:")
+            #print(obj.y_point-10)
+            #print("obj.x_point+i/10:")
+            #print(obj.x_point+i/10)
+            #print("obj.y_point+10:")
+            #print(obj.y_point+10)
+           
+            #print("\n",obj.x_point,i/10,obj.x_point+i/10,str(function(str(obj.x_point+i/10))),obj.y_point-10,"<=",eval(function(str(obj.x_point+i/10))),"<=",obj.y_point+10)
+            #print(obj.y_point,"-",horizontal_segment(26),"<=",eval(function(str(obj.x_point+i/10))),"<=",obj.y_point,"+",horizontal_segment(26))
+
+            '''
+            This function checks to see if the curve of f(x) passes through any coins.
+            Finds f(x), where x will range from the left-edge X-coordinate of coin to the right-edge X-coordinate of coin, increasing in 0.1 every time for increased accuracy.
+            If at any point, f(x) falls between the lower Y-coordinate of coin and upper Y-coordinate of coin, then f(X) has 'passed through' this coin.
+            The division constant for horizontal_segment(division) is 13.5 which gives the relative width/height of the point. input here is 26 to get the halfway length from centre. 
+            '''
+
+            try:
+                if obj.y_point-horizontal_segment(26) <= eval(function(str(obj.x_point+i/10))) <= obj.y_point+horizontal_segment(26):
+                    Sc1.coins+=1      # Incease the coins counter by 1.
+                    plot_nodes(obj,"center",0,'o',"green","",30,1)     # Make coin green to show its been picked up.
+                    print("asa fit fug fij")
+                    break
+
+            except Exception:     # This occurs when e.g., f(x)=5/x, as function checks the value of f(0) will lead to division by zero. In this case, pass it. 
+                pass
+
+            # Remember to put brackets around function argument because numpy doesn't do BEDMAS and will treat e.g.,  f(-x)=--x^2, not f(-x)=-(-x)^2.
+            
+
+       # if eval(function("obj.x_point"))==obj.y_point:
+        #    Sc1.coins+=1      # Incease the coins counter by 1.
+         #   plot_nodes(obj,"center",0,'.',"green","",4)
+
+        #print("solving here")     # see if f(x) passes through any of the coins which have a certain radius by solving simultaenous equation of f(x) and formula for circle. 
+        #x,y=sym.symbols('x,y')
+        #eq1=sym.Eq(eval(user_function),y)
+        #eq2=sym.Eq((x-obj.x_point)**2+(y-obj.y_point)**2,10**2)
+
+        #result=sym.solve([eq1,eq2],(x,y))
+        #if "I" not in str(result):
+        #    Sc1.coins+=1      # Incease the coins counter by 1.
+        #    plot_nodes(obj,"center",0,'o',"green","",13)
+        
+        #if obj.y_point-20<=eval(function("obj.x_point"))<=obj.y_point+20:
+         #   Sc1.coins+=1      # Incease the coins counter by 1.
+          #  plot_nodes(obj,"center",0,'.',"green","",4)
+            
+        
+        #eval(function("obj.x_point-1"))
+
+    coins_counter_label.config(text=Sc1.coins)   
+
+    score_counter_label.config(text=calculate_score())
+    
+    print(original_entry)
+
+
+    '''
+    Redzone 
+    '''
+    plt.plot(R1.x_lower,R1.y_lower,marker="x",markersize=15,color="red",markeredgewidth=4) 
+    
+
+    try:
+        latex_expression="$"+latex(sympify(str(original_entry)))+"$"     # Converts user input to LaTeX expression.
+        plt.title('f(x) = '+latex_expression)    # Add title and labels.
+    except Exception:
+        plt.title('f(x)')      # If there is no function, make it blank.
+
+
+    ax.set_xlabel('x', loc='right')
+    ax.set_ylabel('y', loc='top')
+    
+    
+
+    if top is None:
+        top = Toplevel()     # Create toplevel window.
+        top.title("Graph")
+        top.geometry("+0+0")  # Set the position of the window.
+        #top.attributes('-fullscreen', True)
+        #top.attributes('-fullscreen', False)
+        top.resizable(0,0)
+        
+        
+        canvas = FigureCanvasTkAgg(fig, master=top)    # Create a canvas and add the plot to it.
+    else:
+        canvas.get_tk_widget().pack_forget()     # Articulation ridiculous; matplotlib glitches if I refresh the window, so canvas is refreshed instead.
+        canvas=FigureCanvasTkAgg(fig,master=top)
+
+    canvas.draw()
+    canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
+    
+   
+    
+
+
+def error_check(event=None):
+    global user_function,ax,x,y,error_label,original_entry
+
+   
+    user_function = function_entry.get()      # Get user input as a function expression.
+    original_entry = function_entry.get()     # Get a copy of the user's original input. 
+
+    try:
+       
+        if not user_function:      # If input is blank, use for later as error.
+            user_function="Tubicl-Oasis"
+       
+        user_function = re.sub(r'(\d+)([a-zA-Z_]+)', r'\1*\2', user_function)      # Substitute multiplication with * symbols for use in numpy.
+        
+        original_entry=user_function     # obtains original entry by adding in necessary multiplicative operators.
+
+        user_function=(
+           user_function     # Make notation substitutions for use in numpy.
+                .replace("^","**")
+                .replace("sin","np.sin")     # Trig functions.
+                .replace("cos","np.cos")
+                .replace("tan","np.tan")
+                .replace("sec","np.sec")
+                .replace("csc","np.csc")
+                .replace("cot","np.cot")
+                .replace("sqrt","np.sqrt")
+                .replace("abs","np.abs")
+                .replace("pi", str(np.pi))     # Constants.
+                .replace("e", str(np.e))
+                .replace(")(",")*(")     # Ease of notation, e.g., (x+2)*(x-4) -> (x+2)(x-4)
+
+       )
+        
+        for i in [0,1,2,3,4,5,6,7,8,9,pi,e,"x"]:     # Ease of notation, e.g., 2*(x+3) -> 2(x+3)
+            user_function=user_function.replace(str(i)+"(",str(i)+"*(")
+
+        
+
+        x = np.linspace(0,0,0)     # Test to see if user function is plottable for error checking before actually graphing it. 
+        if 'x' not in user_function:     
+            y = [float(user_function) for _ in x]
+            user_function=str(eval(user_function));original_entry=str(eval(original_entry))     # Occurs when user inputs e.g., 2+3, some reason this needs to be simplified first using eval(), then back to str().
+        
+        else:
+            y = eval(user_function)
+
+
+        error_label.config(text="")     # Clear error label, no error present. 
+        print("dfsvfdfd")
+        print(user_function)
+        print(original_entry)
+        print(type(user_function))
+        print(type(original_entry))
+        return graph_function()     # Graph the function.
+
+    except Exception:
+
+        if user_function.count("(") != user_function.count(")"):
+            error_label.config(text="Check all brackets have been closed.")     # Inform user their brackets have not been closed. 
+        elif 'y' in str(user_function):
+            error_label.config(text="Remember f(x) is a function of x.")     # Inform user they used y as their variable.
+        elif user_function=="Tubicl-Oasis":
+            error_label.config(text="f(x) has not been defined!")     # Inform user they haven't defined f(x).
+        else:
+            error_label.config(text="Unrecognized function, check notation.")     # Inform user they have not inputted a valid function.
+
+
+def coordinates():     # When coordinate button is clicked, if it was shown, then hide it, vice versa.
+    global show_coordinates
+    if show_coordinates==True:    
+        show_coordinates=False
+    else:
+        show_coordinates=True
+
+    return graph_function()
+    
+
+def main():     # Main window, where the user mostly interacts with the program. 
+
+    global function_entry,error_label,user_function,original_entry,top,coins_counter_label,coins_counter,goal_label,tries_counter,tries_counter_label,score_counter_label
+
+    #Thread(target=music).start()
+    
+
+    function_label=Label(root,text='f(x)=')
+    function_label.place(x=0,y=0)
+
+    function_entry=Entry(root,width=30)
+    function_entry.place(x=30,y=0)
+    function_entry.focus_set()     # Have cursor automatically be placed in this entry box.
+
+    graph_button=Button(root,text='Graph',command=error_check)
+    graph_button.place(x=280,y=0)
+
+    coordinate=Button(root,text="Coordinates",command=coordinates)
+    coordinate.place(x=5,y=50)
+
+    error_label=Label(root,text="",fg="red") 
+    error_label.place(x=350,y=0)
+
+    coins_label=Label(root,text="Coins:")
+    coins_label.place(x=650,y=0)
+
+    coins_counter_label=Label(root,text=Sc1.coins)
+    coins_counter_label.place(x=695,y=0)
+
+    goal_label=Label(root,text=Sc1.goal)
+    goal_label.place(x=650,y=20)
+
+    tries_label=Label(root,text="Tries:")
+    tries_label.place(x=650,y=40)
+
+    tries_counter_label=Label(root,text=Sc1.tries)
+    tries_counter_label.place(x=695,y=40)
+
+    score_label=Label(root,text="Score:",font=("Times 10"))
+    score_label.place(x=650,y=70)
+
+    score_counter_label=Label(root,text=Sc1.score,font=("Times 10"))
+    score_counter_label.place(x=700,y=70)
+
+
+
+    
+
+
+    
+
+    user_function=str(99999)
+    original_entry=""
+    graph_function()
+
+    root.bind('<Return>',error_check)     # When user presses enter, it automatically graphs the function
+    
+    root.title("Input a function")
+    root.geometry("875x100+0+910")
+    root.resizable(0,0)
+    root.mainloop()
+    
+   
+
+root = Tk()
+main()
