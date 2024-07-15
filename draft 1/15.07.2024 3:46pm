@@ -1,0 +1,1448 @@
+import matplotlib.pyplot as plt     # All the necessary modules, some are dehighlighted in VS Code but they will be used. 
+import matplotlib.patheffects as pe
+import numpy as np
+import sympy as sym
+from numpy import *
+from sympy import *
+import re  
+import time
+import random
+from tkinter import *
+from threading import *
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.animation import FuncAnimation
+import json
+
+import os
+import math
+import winsound
+from matplotlib.patches import *
+
+# MAKE ERROR MESSSAGE POP UP IN NEW WINDOW FOR EAXCELLENCE
+
+
+#uncomment this line below to play music
+#winsound.PlaySound(os.getcwd()+'/Sounds/Josad ost.wav', winsound.SND_ASYNC | winsound.SND_ALIAS )
+
+
+#playsound(os.getcwd()+'/Sounds/Josad ost.wav', False)
+
+
+'''
+Draft 1, this program focuses just on the functionality and making sure everything works. 
+Draft 2 in the future will be about graphicalising my program and making it visually appealing.
+'''
+
+
+plt.figure()     # For some reason I need to graph nothing then immediately close it otherwise matplotlib starts glitching.
+plt.close()
+
+with open("game_data.json","r") as f:     # Open up the json file containing player data.
+    data=json.load(f)
+print(data)
+
+
+
+
+
+'''
+Variables below
+'''
+goal_accomplished_top=None     # Begin with no toplevel window.
+new_player_top=None
+delete_top=None
+draw_canvas=True     # These variables that don't show up often so don't need to be part of a class.
+
+
+
+
+class tb:     # Make these things a class: Tubicle-Oasis so I don't have to global it everywhere.
+        
+    function_curve=None   # The variable assigned to the user's function being drawn, used to reconfigure its colour. 
+    points_intersection=0     # If the curve has passed through start point and greenzone, passing through both=2, coins not needed.
+    text_coordinates=None
+    level=None
+
+    current_seed=None     # Indicates the current seed class for the current gamemode e.g., zen mode -> Class: Seed 1.
+    current_redzone=None     # Indicates the current redzone class for the current gamemode e.g., journey level 1 -> Class: Redzone 1.
+    current_greenzone=None  # Indicates the current redzone class for the current gamemode e.g., journey level 1 -> Class: Greenzone 1.
+
+    redzone_rectangle=None     # These 2 variables used and set to the specific redzones/greenzones properties to be plotted as shapes.
+    greenzone_rectangle=None
+
+    show_coordinates=True     # Coordinates are shown by default.   
+    previous_show_coordinates=show_coordinates     # Keep track of the previous state
+
+    coins_list0=None     # The list of coins to spawn in the modes.
+    coins_list1=None
+
+    music_toggle=True     # Music plays by default.
+
+    name=data["Player"][0]["name"]     # Name of the player, from the json file.
+
+
+
+'''
+Class: Seed generates a graph at a random location on the x/y-plane, of random size. 
+Begins by generating the upper and lower domains (x axis length) ranging from -200 to 200.
+Then generates the upper and lower ranges (y axis length) initially equal to its domain, this is so the graph is to scale.
+var.offset generates a random value from 0 to the midpoint of the y axis length.
+This value is used to offset the new upper and lower ranges by a difference of var.offset, producing a randomly generated seed.
+'''
+
+class Seed:   # Randomly generate blank graph.
+    def __init__(self,domain_lower,domain_upper,range_lower,range_upper):
+        self.domain_lower=domain_lower
+        self.domain_upper=domain_upper
+        self.range_lower=range_lower
+        self.range_upper=range_upper
+
+'''zen mode seed'''
+def spawn_zen_seed():     # randomly generate the zen mode seed configurations. This is put into a function to use later on to re-randomly generate a new seed each time user starts up zen mode. 
+    global S0,offset,flip2,domain_midpoint
+    S0=Seed(round(random.randint(-200,0),-1),round(random.randint(0,200),-1),None,None)     # Seed 1, for zen mode.
+    flip2=bool(random.getrandbits(1))   
+
+    domain_midpoint=int((abs(S0.domain_lower)+S0.domain_upper)/2)
+
+    print(vars(S0))
+    print("domain_midpoint",domain_midpoint)
+
+    try:
+        offset=random.randint(0,domain_midpoint-10)
+    except Exception:
+        offset=0     # Sometimes seed can get unlucky and will spawn origin off the grid, in this case, make offset 0 to prevent axis from going out of view.
+
+    S0.range_lower=-domain_midpoint;S0.range_upper=domain_midpoint
+
+    if flip2==True:     # offset y axis for more randomness.
+        S0.range_lower-=offset;S0.range_upper-=offset
+    else:
+        S0.range_lower+=offset;S0.range_upper+=offset
+    print("IN SEED FUNCTION:",S0.domain_lower,S0.domain_upper,S0.range_lower,S0.range_upper)
+
+
+spawn_zen_seed()
+
+'''journey mode seed'''
+S1=Seed(0,10,0,10)     # Seed 2, for journey mode level 1. 
+
+
+
+
+
+
+
+'''
+Class: Node generates random points on the graph.
+generates P nodes: the start and end points,
+generates C nodes: the 'coins' to be collected,
+the graph is divided vertically into 7 even sections, each node having its own area to randomnly spawn in. 
+left end of graph is 0th section, right end is 7th section.
+
+'''
+class Node:    # Randomly generate nodes.
+    def __init__(self,x_point,y_point,chance):
+        self.x_point=x_point
+        self.y_point=y_point
+        self.chance=chance
+
+def area(section):     # generate the area for node to randomnly spawn based of the nth section of the graph.
+    return round(int(S0.domain_lower+int(section)*(abs(S0.domain_lower)+S0.domain_upper)/7))
+
+boolean=[True,False]     # Spawn node? -> yes/no (66% chance yes, 33% no)
+def spawn_node(start,end):     # Function to generate 2 points, 5 coins in their dedicated sections of the graph. e.g., 1/7th section is first section, 7/7th is last.
+    return Node(random.randint(area(start),area(end)),random.randint(S0.range_lower,S0.range_upper),(random.choices(boolean,weights=[2,1]))[0])     # 'weights' adjusts the probability of a coin spawning. currently is set to 2/3.
+
+
+'''zen mode nodes''' # This has been made into a function to be called again whenever user enters zen mode because these will randomly be generated each time user does so.
+def spawn_zen_nodes():
+    global P0,C0_1,C0_2,C0_3,C0_4,C0_5
+    print("IN NODE FUNCTION:",S0.domain_lower,S0.domain_upper,S0.range_lower,S0.range_upper)
+    P0=spawn_node(0,1);P0.chance=True;P0.x_point+=1  # start and end points: P0, must spawn.
+    C0_1=spawn_node(1,2)     # These are all the coins, 'C' to spawn in zen mode, denoted with the following '0'. Number proceeding '_'is the nth coin of the mode. e.g., C1_5 -> 5th coin of journey level 1.
+    C0_2=spawn_node(2,3)
+    C0_3=spawn_node(3,4)
+    C0_4=spawn_node(4,5)
+    C0_5=spawn_node(5,6)     # Spawn_nodes function used to randomly spawn within the horizontal areas of the arguments, for coordinate spawning, directly make a Node object.
+    tb.coins_list0=[C0_1,C0_2,C0_3,C0_4,C0_5]     # Make these coins a list to put as an attribute for class: Level.
+    
+spawn_zen_nodes()
+
+'''journey level nodes'''
+P1=Node(1,1,True)
+C1_1=Node(4,4,random.choices(boolean,weights=[2,1])[0])     # 2/3 chance of spawning a coin, max. 2 coins possible.
+C1_2=Node(8,8,random.choices(boolean,weights=[2,1])[0])
+tb.coins_list1=[C1_1,C1_2]
+
+def journey_coins_chance(level):     # Respawn the coins for journey mode, their positions remain fixed/not randomly generated, but their chances of spawning are.
+    for obj in level.coins:
+        obj.chance=random.choices(boolean,weights=[2,1])[0]     # Respawn the chances of coins spawning for all coins in this specific level.
+    
+
+
+# points=[P0]   # points=[P0,P1]
+
+#for obj in tb.coins_list:     # If node's spawn chance is false, then don't spawn.
+ #   if obj.chance==False:
+  #      obj.y_point=9999
+        
+
+print(vars(P0))
+#print(vars(P1)) '''
+print(vars(C0_1))
+print(vars(C0_2))
+print(vars(C0_3))
+print(vars(C0_4))
+print(vars(C0_5))
+
+
+
+
+def plot_all():     # Quick function that plots all nodes. 
+    plot_nodes(P0,"right",1,'x',"blue","Start",15,5,L0)    # Plot points and coins.
+    #plot_nodes(P1,"left",-1,'x',"blue","End",15,5)     # With Size set to 15, 675/32 (approx. 21.1) Points lined up horizontally fits the horizontal length of graph. '''
+    
+    for obj in tb.coins_list0:    # plot all the coins, if the coin's spawn is false ie. doesn't spawn, then ignore this code.
+        if obj.chance==True:
+            plot_nodes(obj,"center",0,'o',"yellow","",30,1,L0)     # With Size set to 30, 13.5 coins lined up horizontally fits the horizontal length of graph. 
+
+
+
+def plot_nodes(node,alignment,offset,marker,colour,label,size,width,level):     # Quick function which plots and labels all nodes, and is fully customizable using its arguments. 
+    plt.plot(node.x_point,node.y_point,marker=marker,markersize=size,color=colour,markeredgewidth=width,path_effects=[pe.Stroke(linewidth=5, foreground='#ffff6e'), pe.Normal()]) 
+    
+    if tb.show_coordinates==True:     # If coordinates are on, print them. 
+        tb.text_coordinates=plt.text(node.x_point+int(offset),node.y_point+horizontal_segment(20,level.seed),label+' ('+str(node.x_point)+','+str(node.y_point)+')',color='orange',fontsize='9',horizontalalignment=alignment,fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')])
+    
+    else:     # If coordiantes are off, only label the start and end nodes.
+        tb.text_coordinates=plt.text(level.point.x_point,level.point.y_point+horizontal_segment(30,level.seed),"Start",color='orange',fontsize='9',horizontalalignment="right",fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')])
+        #tb.text_coordinates=plt.text(P1.x_point,P1.y_point+horizontal_segment(30),"End",color='orange',fontsize='9',horizontalalignment="left",fontname="Arial").set_path_effects([pe.withStroke(linewidth=2, foreground='white')]) '''
+
+    print(tb.text_coordinates)
+
+
+
+
+
+
+
+
+
+class Score:     # Keep track of player's score.
+    def __init__(self,coins,goal,tries,score,penalty,grade):
+        self.coins=coins
+        self.goal=goal
+        self.tries=tries
+        self.score=score
+        self.penalty=penalty
+        self.grade=grade
+
+'''Setup score objects, taking into account the saved data from json file. '''
+Sc0=Score(0,"",0,0,"","")     # The score information for zen mode, updated by the below calculate_score function.
+Sc0.score=data["Zen"][0]["score"]     # update the zen mode score to the saved data in json file. 
+Sc0.grade=data["Zen"][0]["grade"]
+
+Sc1=Score(0,"",0,0,"","")
+Sc1.score=data["Journey - Level 1"][0]["score"]     # update the journey - level 1 mode score to the saved data in json file. 
+Sc1.grade=data["Journey - Level 1"][0]["grade"]
+
+
+def calculate_score(level):     # Calculate the player's score for that level.
+    print("SCORE")
+    print(level.score_info.goal)
+    if level.score_info.goal=="Goal: Not accomplished":     # If player's function doesn't meet start/end points, score is 0.
+        return 0
+    
+    else:     # Calculate score,default 100 points by completing goal, every coin is + 35 Tries is divided from sum; the more the worse.
+        level.score_info.score=100+35*level.score_info.coins+round(50/level.score_info.tries)
+
+        if level.score_info.penalty=="Penalty for Crossing Redzone":     # If player crosses redzone, score halves.
+            level.score_info.score=round(level.score_info.score/2)
+            return round(level.score_info.score)
+        
+        else:
+            print(level.score_info.coins)
+            return level.score_info.score
+
+
+def calculate_grade(level):     # Calculate the player's grade based on his score for that level.
+    max_score=100+35*len(level.coins)+50     # The maximum score player can get to get A+ grade is 100(default bonus) + 35*total possible coins + 50(get it on 1st try) + 0(no redzone penalty).
+    
+    if max_score <= level.score_info.score:     # If the user's score reaches this max possible score, he gets A+.
+        level.score_info.grade="A+"
+    elif 52+4*(max_score-52)/5 <= level.score_info.score < 52+5*(max_score-52)/5:
+        level.score_info.grade="A"
+    elif 52+3*(max_score-52)/5 <= level.score_info.score < 52+4*(max_score-52)/5:
+        level.score_info.grade="B"
+    elif 52+2*(max_score-52)/5 <= level.score_info.score < 52+3*(max_score-52)/5:
+        level.score_info.grade="C"
+    elif 52+(max_score-52)/5 <= level.score_info.score < 52+2*(max_score-52)/5:
+        level.score_info.grade="D"
+    elif level.score_info.score < 52:    # Technically the lowest possible score, gets no coins, takes ~infinite tries, crosses redzone (score halves) but still crosses greenzone to complete level. 
+        level.score_info.grade="F"
+
+
+
+
+
+
+
+def horizontal_segment(division,seed):     # Gives the length of the width of the graph when divided into specific segments. 
+    return (abs(seed.domain_upper)+abs(seed.domain_lower))/division
+
+
+
+
+
+
+
+
+
+'''
+Class: Redzone generates a red area randomly on the graph.
+picks a random point where a coin has not spawned as a potential redzone area.
+x-y point is bottom left corner of rectangle; x_point is the corresponding x_point of unspawned coin,
+width is randomly chosen 
+y_point is randomly chosen between the lowest range of graph to vertical midpoint,
+height is randomly chosen between 1 to half the height of the graph.
+
+UPDATE: greenzone, denoted with G is the safe area at the right end of graph which as long as the user function passes through this, is valid. 
+They're both under the same class: Redzone because they have the same object properties so wouldn't be approrpaite to create an entire new class with the same code, just different name.
+Greenzone appears at the very right of graph of 'x-width of seed / 20' thickness covering the edges. 
+'''
+class Redzone:     # Class: Redzone which penalises player if function passes through its area.
+    def __init__(self,x0,y0,x1,y1,x2,y2,x3,y3,width,height,spawn):
+        self.x0=x0;self.x1=x1;self.x2=x2;self.x3=x3
+        self.y0=y0;self.y1=y1;self.y2=y2;self.y3=y3
+        self.width=width;self.height=height
+        self.spawn=spawn
+
+'''
+Spawns greenzone, this area is generalised based on the size of seed unlike redzones, for additional info on how this is generated, refer above.
+'''
+def greenzone(seed):     # Function which automatically sets up dimensions of greenzone based off the current level's seed.
+    return Redzone(seed.domain_upper-int(horizontal_segment(20,seed)),seed.range_lower,seed.domain_upper,seed.range_lower,seed.domain_upper-int(horizontal_segment(20,seed)),seed.range_upper,seed.domain_upper,seed.range_upper,int(horizontal_segment(20,seed)),seed.range_upper-seed.range_lower,True)     # Redzone1 and Greenzone1 is for zen mode. 
+     
+'''Zen mode green/redzones'''
+R0=Redzone(None,None,None,None,None,None,None,None,None,None,True)      # Corners: 0=bottom left, 1=bottom right, 2=top left, 3=top right. R0 starts off as all none as these properties will be randomly generated later on. 
+def spawn_zen_greenzone():     # Make the greenzone for zen mode into a function to be used again later in the code to refit the new randomly generated graph's seed.
+    global G0
+    G0=greenzone(S0)     # Red/greenzone 0 is for zen mode.
+
+spawn_zen_greenzone()
+
+'''Journey level green/redzones'''
+R1=Redzone(5,1,6,1,5,2,6,2,1,1,False)     # Red/greenzone 1 is for journey mode level 1, where redzone coordinates are not randomly generated. For level 1 there is no redzone
+G1=Redzone(9,0,10,0,9,10,10,10,1,10,True)     # G1 directly defined as class rather than using greenzone(seed) function because level 1 has a thicker greenzone.
+print(int(horizontal_segment(20,S1)))
+print(G1.width,G1.height,G1.x0,G1.y0)
+
+
+def spawn_redzone():
+    R0.x0=random.randint(area(1),area(6))     # Spawn x point of redzone between the start/end points.
+    R0.y0=random.randint(S0.range_lower,S0.range_upper)     # Spawn y point anywhere in the y-range of graph.
+
+    R0.x1=R0.x0+random.randint(int(horizontal_segment(8,S0)),int(horizontal_segment(3,S0)))     # Make width/height range from 1/3rd of graph to 1/8th.
+    R0.y1=R0.y0
+
+    R0.x2=R0.x0
+    R0.y2=R0.y0+random.randint(int(horizontal_segment(8,S0)),int(horizontal_segment(3,S0)))
+
+    R0.x3=R0.x1
+    R0.y3=R0.y2
+
+    R0.width=R0.x1-R0.x0
+    R0.height=R0.y2-R0.y0
+
+
+
+
+
+
+
+
+'''
+Class: Level
+All the previous classes were responsible for generating properties e.g., redzones, seeds...  
+this class now organises all the previous objects into levels, L0=zen, L1 = journey level 1 etc.
+this way I can refer to these simple objects later when the program actually generates these levels which is more effecient 
+'''
+class Level:
+    def __init__(self,seed,point,redzone,greenzone,coins,score_info,title):
+        self.seed=seed
+        self.point=point
+        self.redzone=redzone
+        self.greenzone=greenzone
+        self.coins=coins
+        self.score_info=score_info
+        self.title=title
+
+
+L0=Level(S0,P0,R0,G0,tb.coins_list0,Sc0,"Zen")
+L1=Level(S1,P1,R1,G1,tb.coins_list1,Sc1,"Journey - Level 1")
+
+
+
+
+'''
+Graph configurations function, called before starting each level/zen mode to set up the graph the same way 
+e.g., setup x/y axis, grid the graph etc.
+'''
+def graph_configurations(seed):
+    global canvas,ax,fig
+
+    fig, ax = plt.subplots(figsize=(7, 7))     # X by Y graph size.
+
+    ax.set_aspect(aspect=1)     # Aspect ratio, larger number -> longer y axis.
+    ax.grid(True, which='both')
+    ax.spines['left'].set_position('zero')     # Set the ticks for x and y axis.
+    ax.spines['right'].set_color('none')
+    ax.yaxis.tick_left()
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['top'].set_color('none')
+    ax.xaxis.tick_bottom()
+    ax.minorticks_on()
+    ax.set_axisbelow(True)
+    
+    ax.set_xlabel('x', loc='right')
+    ax.set_ylabel('y', loc='top')
+    print("IN GRPAH CONFIG. FUNCTION S0:",S0.domain_lower,S0.domain_upper,S0.range_lower,S0.range_upper)
+    print("IN GRPAH CONFIG. FUNCTION SEED:",seed.domain_lower,seed.domain_upper,seed.range_lower,seed.range_upper)
+    #plt.grid(visible=True, which='major', color='b', linestyle='-')     # Set gridlines. 
+    plt.xlim(seed.domain_lower-0.2, seed.domain_upper+0.2)     # Domain and range of graph.
+    plt.ylim(seed.range_lower-0.2,seed.range_upper+0.2)     # Additional offsets is so first and last gridlines won't get cutoff.
+    plt.grid(visible=True, which='minor', color='grey', linestyle='-',linewidth=0.2)
+
+    
+
+'''
+General format for creating levels (exception for zen mode, slightly different setup to account for RNG)
+def level
+global canvas,ax,fig,level
+set current level
+configure graph to current seed
+plot nodes
+redo the chance of coins spawning
+plot red/greenzones
+update canvas
+'''
+
+
+
+'''
+Starts the zen mode by randomly generating the nodes -> coins, start/end points, redzone
+then updates the canvas
+'''
+def spawn_level_zen():
+    global canvas,ax,fig,level
+
+    level=L0
+    
+    spawn_zen_seed()     # Reespawn zen mode seed to generate new, different graph seed whenever user enters zen mode.
+    spawn_zen_nodes()     # Respawn all nodes to generate new, different random positions whenever user enters zen mdoe. 
+    spawn_zen_greenzone()     # Respawn greenzone for the newly randomly generated seed. (there is no spawn_zen_redzone as this line of code is right below, needs to specifically be programed so it doesn't spawn in the way of any of these already generated nodes/zones)
+    L0.seed=S0;L0.coins=tb.coins_list0;L0.point=P0;L0.greenzone=G0       # Update L0 with these new configurations.
+
+    graph_configurations(L0.seed)     # Go set the graph configurations for a typical math graph format with class: Seed 1 for zen mode.
+
+    plot_all()     # Plot all the randomly generated nodes.
+
+    
+    '''
+    Redzone 
+    calling the spawn_redzone() function randomnly spawns redzone
+    while loop is true, it will check if any nodes are within the redzone, if it is, then keep looping until redzone spawns away from all ndoes
+    This section is specifically under the zen mode and not generalised for all modes including journey since journey won't have randomly spawning redzones so isn't worth bringing outside this function.
+    '''
+    
+    
+    global pointio;pointio=[L0.point] # temporary make the start node into a list to be able to combine it with coin list to be included for the calculation below.
+    if R0.spawn==True:     
+        loop=True
+        while loop==True:     # Continuously spawn redzone randomnly until it doesn't spawn on top of any nodes.
+            loop=False
+            spawn_redzone()
+            
+            for obj in (L0.coins+pointio):     # If redzone crosses into coins or start node, then keep spawning new redzone. 
+                #print(R0.x0,R0.y0,"\n",\
+                #     R0.x1,R0.y1,"\n",\
+                #     R0.x2,R0.y2,"\n",\
+                #     R0.x3,R0.y3,"\n")
+                
+                print("\n",R0.x0,"<=",obj.x_point,"<=",R0.x1,"and",R0.y0,"<=",obj.y_point,"<=",R0.y2)
+                if (R0.x0 <= obj.x_point <= R0.x1 and R0.y0 <= obj.y_point <= R0.y2) or (R0.y2 >= S0.range_upper) or (R0.x1 >= S0.domain_upper-horizontal_segment(20,S0)):     # If any coins or start point or greenzone are within the redzone area or redzone goes off the graph, respawn it.
+                    loop=True
+               
+
+
+
+
+    '''
+    Draw the red/greenzones onto graph, alpha is the opacity of the colours
+    higher alpha (0.6) shows it has been crossed by user function,
+    lower alpha (0.3) shows it hasn't
+    '''
+    tb.redzone_rectangle = Rectangle((R0.x0,R0.y0), R0.width, R0.height, linewidth=2,color='red', alpha=0.3)     # Draw the Redzone onto graph.
+    ax.add_patch(tb.redzone_rectangle)    
+
+    tb.greenzone_rectangle = Rectangle((G0.x0,G0.y0), G0.width, G0.height, linewidth=2,color='green', alpha=0.3)     # Draw the Greenzone onto graph.
+    ax.add_patch(tb.greenzone_rectangle)    
+
+
+    canvas = FigureCanvasTkAgg(fig, master=root)    # Create a canvas and add the plot to it.'
+    canvas.get_tk_widget().place(x=0,y=0)
+    canvas.draw()
+
+
+
+
+def spawn_level1():     # Level one of journey mode.
+    global canvas,ax,fig,level
+
+    level=L1
+    
+    graph_configurations(L1.seed)     # Go set the graph configurations for a typical math graph format with class: Seed 2 for journey mode level 1.
+
+    plot_nodes(P1,"right",1,'x',"blue","Start",15,5,L1)  # Plot start node of journey level 1.
+
+    journey_coins_chance(L1)     # Respawn the chances of the coins spawning. 
+
+    #tb.redzone_rectangle = Rectangle((R1.x0,R1.y0), R1.width, R1.height, linewidth=2,color='red', alpha=0.3)    # Draw redzone onto graph.
+    #ax.add_patch(tb.redzone_rectangle)  
+    tb.greenzone_rectangle = Rectangle((G1.x0,G1.y0), G1.width, G1.height, linewidth=2,color='green', alpha=0.3)     # Draw the Greenzone onto graph.
+    ax.add_patch(tb.greenzone_rectangle)    
+
+    canvas = FigureCanvasTkAgg(fig, master=root)    # Create a canvas and add the plot to it.
+    canvas.get_tk_widget().place(x=0,y=0)
+    canvas.draw()
+
+
+
+
+
+
+
+
+
+
+'''
+Graph function, after calling the main where user does his inputs, this graphs the user function
+then calculates if graph has passed through start/end points, coins, redzones etc. colours the curve accordingly e.g., crossing redzone makes curve red
+updates and calculates user score and info, along with updating the title of f(x)
+first argument is on the seed specific to the mode/level chosen as drawing np.linespace needs to fit within the domain of this specific seed.
+*first part of this function also reconfigures necessary information back to inital e.g., coins collected resets to 0 before being recalculated, colours of red/greenzones get reset before being recalculated.
+'''
+def graph_function(level): 
+    
+    global fig,goal_accomplished_top,canvas,user_function,draw_canvas,ax
+
+    for text in ax.texts:     # Remove coordinate text before reconfiguring them only the updated text appears. 
+        text.remove()
+   
+    if goal_accomplished_top:     # Make sure only one of this top window apepars.
+        goal_accomplished_top.destroy()
+    
+    if level==L0:     # If the mode is zen, then plot all the preset randomly generated nodes, including start and coin nodes.
+        plot_all()     # Replot the nodes that way they get set back to their original colour and calculations recheck if user function passes through these nodes still. 
+    else:     # If mode is journey, then plot the start node based off that level.
+        plot_nodes(level.point,"right",1,'x',"blue","Start",15,5,level)   # Plot the start node for journey mode.
+
+        for obj in level.coins:     # Plot the coins for journey mode, if its spawn is set to false, ignore this code.
+            if obj.chance==True:
+                plot_nodes(obj,"center",0,'o',"yellow","",30,1,level)     # Plot the coin.
+
+
+
+    if level.redzone.spawn==True:     # If the level has no redzone, ignore this line of code. 
+        tb.redzone_rectangle.set_alpha(0.3)     # Reconfigure zone rectangles to their original, more transparent colours. 
+    tb.greenzone_rectangle.set_alpha(0.3)
+
+    level.score_info.coins=0     # Update score by initially reconfiguring it back to 0.
+    tb.points_intersection=0
+
+    print("COORDINATES")
+    print(tb.show_coordinates)
+    print(tb.previous_show_coordinates)
+    print(level.score_info.tries)
+    if tb.show_coordinates == tb.previous_show_coordinates:     # The 2 show_coordinate type variables are used to ensure this function runs when user toggles coordinates without increasing tries by 1. 
+        level.score_info.tries+=1
+        print(level.score_info.tries)
+    tb.previous_show_coordinates= tb.show_coordinates
+
+
+
+    x = np.linspace(level.seed.domain_lower, level.seed.domain_upper, 300)     # Domain.
+    
+
+    if 'x' not in user_function:     # Check if 'x' is in the user's function.
+        y = [float(user_function) for _ in x]     # Create a constant function.
+    else:
+        y = eval(user_function)
+
+    def function(input):     # treat user's function as a python function, brackets have been forced in because numpy cannot do bedmas. 
+       return user_function.replace("x","("+input+")")
+    
+    
+
+    
+    def find_points_intersection(node,alignment,offset,label):
+
+        
+
+        '''
+        This function checks to see if the curve of f(x) passes through the start and end points.
+        Finds f(x), where x will range from the left-edge X-coordinate of point to the right-edge X-coordinate of point, increasing in 0.1 every time for increased accuracy.
+        If at any point, f(x) falls between the lower Y-coordinate of point and upper Y-coordinate of point, then f(X) has 'passed through' this point.
+        The division constant for horizontal_segment(division) is 675/32 which gives the relative width/height of the point. input here is 675/16 to get the halfway length from centre. 
+        '''
+
+        print("rounded")
+        print(round(-horizontal_segment(675/16,level.seed)*10))
+        print("unrounded")
+        print(-horizontal_segment(675/16,level.seed)*10)
+        print(horizontal_segment(675/16,level.seed))
+        for i in range(round(-horizontal_segment(675/16,level.seed)*10),round(horizontal_segment(675/16,level.seed)*10)):    # Check if the curve is in the vicinity of the x width of node.  
+                
+            try:
+                if node.y_point-horizontal_segment(675/16,level.seed) <= eval(function(str(node.x_point+i/10))) <= node.y_point+horizontal_segment(675/16,level.seed):     # if curve passes through start and end points, make it green. 
+                    print("BEFOrE HAS CROSSED NODE")
+                    plot_nodes(node,str(alignment),offset,'x',"green",str(label),15,5,level)    # Plot start/end nodes, green.
+                    print("HAS CROSSED NODE")
+                    tb.points_intersection+=1 
+                    break
+            except Exception:    # This occurs when e.g., f(x)=5/x, as function checks the value of f(0) will lead to division by zero. In this case, pass it.
+                pass
+
+            # Remember to put brackets around function argument because numpy doesn't do BEDMAS and will treat e.g.,  f(-x)=--x^2, not f(-x)=-(-x)^2.
+    
+                
+    find_points_intersection(level.point,"right",1,"Start")
+    #find_points_intersection(P1,"left",-1,"End") '''
+
+
+
+    '''
+    sees if function passes through greenzone
+    takes a range of inputs between the x-width of greenzone, inputs it into user function and sees if f(x) is between the greenzone's y-height
+    if it is, the curve has 'crossed' the greenzone. 
+    '''
+    def greenzone_intersection():
+
+        for i in range(0,round(horizontal_segment(20,level.seed)*10)):     # Check if the curve is in the vicinity of the x width of greenzone. 
+            try:
+                if level.seed.range_lower <=  eval(function(str(level.greenzone.x0+i/10))) <= level.seed.range_upper:
+                    tb.greenzone_rectangle.set_alpha(0.6)     # Change greenzone colour to darker green once passed through.
+                    tb.points_intersection+=1 
+                    break
+            except Exception:      # This occurs when e.g., f(x)=5/x, as function checks the value of f(0) will lead to division by zero. In this case, pass it.
+                pass
+            # Remember to put brackets around function argument because numpy doesn't do BEDMAS and will treat e.g.,  f(-x)=--x^2, not f(-x)=-(-x)^2.
+    
+    greenzone_intersection()
+
+
+    print(level.coins)
+    def coins_intersection():    # Calculates to see if curve passes through any coins, description on how is in docstring below. 
+        for obj in level.coins:     # If the coordinates of the coins pass through the function, the user has 'collected' it.
+            
+            if obj.chance==True:     # Only do this calculation if the coin has actually spawned. If it hasn't, then ignore this function. 
+                print("COIN SPAWNED")
+                for i in range(round(-horizontal_segment(26,level.seed)*10),round(horizontal_segment(26,level.seed)*10)):    # Check if the curve is in the vicinity of the x width of coin. 
+                    
+                
+
+                    '''
+                    This function checks to see if the curve of f(x) passes through any coins.
+                    Finds f(x), where x will range from the left-edge X-coordinate of coin to the right-edge X-coordinate of coin, increasing in 0.1 every time for increased accuracy.
+                    If at any point, f(x) falls between the lower Y-coordinate of coin and upper Y-coordinate of coin, then f(X) has 'passed through' this coin.
+                    The division constant for horizontal_segment(division) is 13.5 which gives the relative width/height of the point. input here is 26 to get the halfway length from centre. 
+                    '''
+
+                    try:
+                        if obj.y_point-horizontal_segment(26,level.seed) <= eval(function(str(obj.x_point+i/10))) <= obj.y_point+horizontal_segment(26,level.seed):
+                            level.score_info.coins+=1      # Incease the coins counter by 1.
+                            plot_nodes(obj,"center",0,'o',"green","",30,5,level)     # Make coin green to show its been picked up.
+                        
+                            print("asa fit fug fij")
+                            break
+                    except Exception:     # This occurs when e.g., f(x)=5/x, as function checks the value of f(0) will lead to division by zero. In this case, pass it. 
+                        pass
+
+                    # Remember to put brackets around function argument because numpy doesn't do BEDMAS and will treat e.g.,  f(-x)=--x^2, not f(-x)=-(-x)^2.
+                    
+
+    coins_intersection()
+    
+    
+    
+    
+    
+    try:     # Remove previous curve such that only the current one is showing on graph.
+        tb.function_curve.pop(0).remove()
+    except Exception:
+        pass
+    
+
+
+    '''
+    Redzone_intersection, functions similarly to previous greenzone_intersection
+    '''
+    def redzone_intersection():     # Check if function crosses redzone.
+        
+        for i in range(level.redzone.x0*10,level.redzone.x1*10):     # Checks for x values within the width of redzone.
+            if level.redzone.y0 <= eval(function(str(i/10))) <= level.redzone.y2:     # If f(x-values) is between the height of the redzone, it means f(x) has crossed it.
+                tb.redzone_rectangle.set_alpha(0.6)     # Change redzone colour to darker green once passed through.
+                level.score_info.penalty="Penalty for Crossing Redzone"     # Player gets penalised.
+                break
+            else:
+                level.score_info.penalty="No Penalty!"     # If f(x) doesn't cross redzone, he doesn't get penalised. 
+
+    if level.redzone.spawn==True:     # If this level has a redzone, then call this calculation function otherwise ignore it.
+        print("REDZONE SPAQWN IS TRUE")
+        redzone_intersection()
+    print("////////////////////////////////////////")
+    print(level.title)
+    print("redzone spawn is",level.redzone.spawn)
+
+
+        
+    
+
+    if tb.points_intersection==2:     # Determines the colour of the curve based off the conditions.
+        colour="green"
+        level.score_info.goal="Goal: Accomplished!"     # Goal accomplished.
+    elif level.score_info.penalty!="Penalty for Crossing Redzone":   
+        colour="orange"
+        level.score_info.goal="Goal: Not accomplished"     # Goal not accomplished.
+    else:
+        colour="red"  # Crossed redzone. 
+            
+    tb.function_curve=ax.plot(x, y, color=colour)      # Plot the function.
+ 
+   
+    coins_counter_label.config(text=level.score_info.coins)     # Update coins counter. 
+
+    
+    calculate_score(level)
+    score_counter_label.config(text=calculate_score(level))      # Calculate and update score.
+    
+    print(original_entry)
+
+
+   
+   
+    
+
+   
+
+    tries_counter_label.config(text=level.score_info.tries)     # Update score information.
+    penalty_label.config(text=level.score_info.penalty)
+    goal_label.config(text=level.score_info.goal)   
+    
+
+    
+
+    try:
+        latex_expression="$"+latex(sympify(str(original_entry)))+"$"     # Converts user input to LaTeX expression.
+        plt.title(level.title+'\nf(x) = '+latex_expression)    # Add title and labels.
+    except Exception:
+        plt.title(level.title+'\n')      # If there is no function, make it blank.
+
+    
+    canvas.draw()
+
+
+    if level.score_info.goal=="Goal: Accomplished!":     # If the player has won the round, take him to the won round window. 
+        return goal_accomplished_window(level)
+
+
+
+
+
+'''
+Error check
+when user graphs the function by clicking graph, this first converts user math notation to numpy notation e.g., 2^3 becomes 2**3
+then goes through error checking process of seeing if user function is valid for plotting before calling the graph_function() part
+'''
+def error_check(event=None):
+    global user_function,ax,x,y,error_label,original_entry
+
+   
+    user_function = function_entry.get()      # Get user input as a function expression.
+    original_entry = function_entry.get()     # Get a copy of the user's original input. 
+
+    try:
+       
+        if not user_function:      # If input is blank, use for later as error.
+            user_function="Tubicl-Oasis"
+       
+        user_function = re.sub(r'(\d+)([a-zA-Z_]+)', r'\1*\2', user_function)      # Substitute multiplication with * symbols for use in numpy.
+        
+       
+
+        for i in [0,1,2,3,4,5,6,7,8,9,pi,e,"x"]:     # Ease of notation, e.g., 2*(x+3) -> 2(x+3)
+            
+            user_function=(
+                user_function
+                    .replace(str(i)+"(",str(i)+"*(")
+                    .replace(")(",")*(")     # Ease of notation, e.g., (x+2)*(x-4) -> (x+2)(x-4)
+            )
+
+
+        original_entry=user_function     # obtains original entry by adding in necessary multiplicative operators.
+
+        user_function=(
+           user_function     # Make notation substitutions for use in numpy.
+                .replace("^","**")
+                .replace("sin","np.sin")     # Trig functions.
+                .replace("cos","np.cos")
+                .replace("tan","np.tan")
+                .replace("sec","np.sec")
+                .replace("csc","np.csc")
+                .replace("cot","np.cot")
+                .replace("sqrt","np.sqrt")
+                .replace("abs","np.abs")
+                .replace("pi", str(np.pi))     # Constants.
+                .replace("e", str(np.e))
+       )
+        
+        
+
+        
+
+        x = np.linspace(0,0,0)     # Test to see if user function is plottable for error checking before actually graphing it. 
+        if 'x' not in user_function:     
+            y = [float(user_function) for _ in x]
+            user_function=str(eval(user_function));original_entry=str(eval(original_entry))     # Occurs when user inputs e.g., 2+3, some reason this needs to be simplified first using eval(), then back to str().
+        
+        else:
+            y = eval(user_function)
+
+
+        error_label.config(text="")     # Clear error label, no error present. 
+        print("dfsvfdfd")
+        print(user_function)
+        print(original_entry)
+        print(type(user_function))
+        print(type(original_entry))
+
+        
+        return graph_function(level)     # Graph the function.
+
+    except ValueError:
+
+        if user_function.count("(") != user_function.count(")"):
+            error_label.config(text="Check all brackets have been closed.")     # Inform user their brackets have not been closed. 
+        elif 'y' in str(user_function):
+            error_label.config(text="Remember f(x) is a function of x.")     # Inform user they used y as their variable.
+        elif user_function=="Tubicl-Oasis":
+            error_label.config(text="f(x) has not been defined!")     # Inform user they haven't defined f(x).
+        else:
+            error_label.config(text="Unrecognized function, check notation.")     # Inform user they have not inputted a valid function.
+
+
+
+
+def coordinates():     # When coordinate button is clicked, if it was shown, then hide it, vice versa.
+    
+
+    if tb.show_coordinates==True:    
+        tb.show_coordinates=False
+    else:
+        tb.show_coordinates=True
+    tb.previous_show_coordinates = not tb.show_coordinates
+
+    return graph_function(level)
+    
+ 
+def music():     # When music button is toggled in settings, turn music on/off. 
+    global music_button
+
+    if tb.music_toggle==True:     # If music was previously playing, turn it off.
+        tb.music_toggle=False
+        music_button.config(text="Music: OFF")
+    else:
+        tb.music_toggle=True     # If music was previously off, turn it on.
+        music_button.config(text="Music: ON")
+
+
+
+
+
+def new_player_window():     # Have this window appear first to ask for player name in new game. 
+    global name_entry,name_error,greet_label,name_button,new_player_top
+    
+    new_player_top=Toplevel()   # Details for the new player  window. 
+    new_player_top.title("Greetings")
+    new_player_top.geometry("600x300+100+600")     # Make this window open next to the main one.
+    new_player_top.resizable(0,0)
+    new_player_top.overrideredirect(True)     # Stop player from manipulating this window.
+    new_player_top.attributes('-topmost', True)     # Make this window appear in front.
+
+    new_player_top.bind('<Return>',enter_name)     # When user presses enter, it automatically checks the name. 
+
+    new_player_canvas=Canvas(new_player_top,height=300,width=600)     # Frame for top window.
+    new_player_canvas.place(x=0,y=0)
+
+    name_label=Label( new_player_top,text="Greetings, new player. Please enter your name:")
+    name_label.place(x=100,y=100)
+
+    name_entry=Entry(new_player_top,width=50)
+    name_entry.place(x=100,y=130)
+
+    name_button=Button(new_player_top,text="Ok",command=enter_name)
+    name_button.place(x=510,y=130)
+
+    name_error=Label(new_player_top,text="",fg="red")
+    name_error.place(x=210,y=155)
+
+
+
+
+
+def goal_accomplished_window(level):     # When the user wins the round ie. goal: accomplished, take him to this window.
+    global goal_accomplished_top,graph_button
+    
+    graph_button["state"]="disabled"     # Disable all main buttons once win window pops up to stop user interacting with the level once it is already over.
+    coordinate["state"]="disabled"
+    back_button["state"]="disabled"
+    function_entry["state"]="disabled"
+    root.unbind('<Return>')     # Temporarily unbind user pressing enter to graph function, this will be rebinded when user leaves level.
+
+    
+    
+    print("you won")
+    goal_accomplished_top=Toplevel()   # Details for the win window. 
+    goal_accomplished_top.title("You won!")
+    goal_accomplished_top.geometry("500x700+875+0")     # Make this window open next to the main one.
+    goal_accomplished_top.resizable(0,0)
+    goal_accomplished_top.overrideredirect(True)     # Stop player from manipulating this window.
+    goal_accomplished_top.attributes('-topmost', True)     # Make this window appear in front.
+  
+    
+    won_label=Label(goal_accomplished_top,text="YOU WON")
+    won_label.place(x=150,y=40)
+
+    goal_label=Label(goal_accomplished_top,text="Goal: accomplished")
+    goal_label.place(x=100,y=80)
+    goal_label_bonus=Label(goal_accomplished_top,text="+100")     # Default +100 points for accomplishing goal
+    goal_label_bonus.place(x=250,y=80)
+
+    tries_label=Label(goal_accomplished_top,text="Tries taken: "+str(level.score_info.tries))
+    tries_label.place(x=100,y=100)
+    tries_label_bonus=Label(goal_accomplished_top,text="+"+str(int(round(50/level.score_info.tries))))
+    tries_label_bonus.place(x=250,y=100)
+
+    coins_label=Label(goal_accomplished_top,text="Coins collected: "+str(level.score_info.coins))
+    coins_label.place(x=100,y=120)
+    coins_label_bonus=Label(goal_accomplished_top,text="+"+str(int(35*level.score_info.coins)))
+    coins_label_bonus.place(x=250,y=120)
+
+    penalty_label=Label(goal_accomplished_top,text="Penalty: None")
+    penalty_label.place(x=100,y=140)
+    penalty_label_bonus=Label(goal_accomplished_top,text="-0")     # If user hasn't crossed redzone, don't deduct points.
+    penalty_label_bonus.place(x=250,y=140)
+
+   
+    if level.score_info.penalty=="Penalty for Crossing Redzone":     # If user has crossed redzone, deduct points.
+        penalty_label.config(text="Penalty: Redzone")
+        penalty_label_bonus.config(text="-"+str(int(level.score_info.score-calculate_score(level))))
+
+    score_label=Label(goal_accomplished_top,text="FINAL SCORE: ")
+    score_label.place(x=140,y=170)
+    score_label_bonus=Label(goal_accomplished_top,text=str(calculate_score(level)))
+    score_label_bonus.place(x=250,y=170)
+
+    calculate_grade(level)
+    grade_label=Label(goal_accomplished_top,text=level.score_info.grade,font='Helvetica 18 bold',fg="red")
+    grade_label.place(x=250,y=200)
+
+    close_button=Button(goal_accomplished_top,text="Save & close",command=menu)
+    close_button.place(x=0,y=400)
+    
+    print("SCORE NUMBERS:")
+    print("level.score_info.score",level.score_info.score)
+    print("calculate_score",str(calculate_score(level)))
+    print("SCORE NUMBERS END")
+    
+    data[str(level.title)][0]["score"]=level.score_info.score     # Update the game data for the file.
+    data[str(level.title)][0]["grade"]=level.score_info.grade    
+    with open("game_data.json", "w") as f:     # Update this back to the original json file.
+        json.dump(data, f, indent=4)
+   
+
+    
+
+
+
+def enter_name(event=None):
+    global name_entry,name_error,greet_label,name_button,journey_button,zen_button
+
+    tb.name=name_entry.get()     # Extract user name as a variable.
+
+    if not tb.name or tb.name.isspace()==True:     # If player inputs blank spaces, it's not allowed.
+        name_error.config(text="Blank names aren't allowed.")
+    else:
+        tb.name=tb.name.title()
+        journey_button["state"]="normal"     # Let player interact with the game modes now. 
+        zen_button["state"]="normal"
+
+        data["Player"][0]["name"]=tb.name     # Update the game data to include player name.
+        with open("game_data.json", "w") as f:     # Update this back to the original json file.
+            json.dump(data, f, indent=4)
+
+        menu()     # Go back to home menu. 
+        
+        
+def reset_data_window():     # Confirmation window for resetting data.
+    global delete_top,music_button,delete_profile_button
+
+    music_button["state"]="disabled"     # Disable these settings buttons to stop player from pressing these buttons when confirming data delete. 
+    delete_profile_button["state"]="disabled"
+
+    delete_top=Toplevel()   # Details for the win window. 
+    delete_top.title("DELETE ACCOUNT")
+    delete_top.geometry("600x300+100+400")     # Make this window open next to the main one.
+    delete_top.resizable(0,0)
+    delete_top.overrideredirect(True)     # Stop player from manipulating this window.
+    delete_top.attributes('-topmost', True)     # Make this window appear in front.
+
+    confirm_title_label=Label(delete_top,text="CONFIRM",font='Helvetica 20 bold',fg="red")
+    confirm_title_label.place(x=220,y=60)
+   
+    confirm_label=Label(delete_top,text="Are you sure you want to delete your current account?\nThis action cannot be undone.")
+    confirm_label.place(x=120,y=100)
+
+    yes_button=Button(delete_top,text="Yes",command=reset_data)
+    yes_button.place(x=200,y=200)
+
+    no_button=Button(delete_top,text="No",command=settings_menu)
+    no_button.place(x=400,y=200)
+
+
+
+
+
+def reset_data():     # Reset game data by resetting json file back to original. 
+    
+    default_data ={     # Replace current json file storing player info with this default info.
+        "Player": [
+            {
+                "name": ""
+            }
+        ],
+        "Zen": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 1": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 2": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 3": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 4": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 5": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 6": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 7": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 8": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 9": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 10": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 11": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 12": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 13": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 14": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 15": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 16": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 17": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ],
+        "Journey - Level 18": [
+            {
+                "score": 0,
+                "grade": 0
+            }
+        ]
+    }
+
+    with open("game_data.json","w") as f_write:     # Open up the json file containing player data.
+       
+        f_write.truncate(0)     # Clear current player data.
+        json.dump(default_data,f_write,indent=4)     # Replace with original, empty new fresh data.
+
+    return menu()     # Go back to home menu
+
+
+
+    
+
+   
+
+
+
+
+
+
+
+'''
+main, where the main user inputs are done here including buttons, info e.g., tries, points, and input box for user to enter function
+'''
+def main(level):     # Main window, where the game begins.
+
+    global function_entry,error_label,user_function,original_entry,coins_counter_label,goal_label,tries_counter_label,score_counter_label,penalty_label,graph_button,back_button,coordinate
+
+    #Thread(target=music).start()
+    
+    ex=900
+
+    back_button=Button(root,text="back",command=menu)
+    back_button.place(x=0,y=1000)
+
+    function_label=Label(root,text='f(x)=')
+    function_label.place(x=0,y=0+ex)
+
+    function_entry=Entry(root,width=30)
+    function_entry.place(x=35,y=0+ex)
+    function_entry.focus_set()     # Have cursor automatically be placed in this entry box.
+
+    graph_button=Button(root,text='Graph',command=error_check)
+    graph_button.place(x=285,y=0+ex)
+
+    coordinate=Button(root,text="Coordinates",command=coordinates)
+    coordinate.place(x=5,y=50+ex)
+
+    error_label=Label(root,text="",fg="red") 
+    error_label.place(x=350,y=0+ex)
+
+    coins_label=Label(root,text="Coins:")
+    coins_label.place(x=650,y=0+ex)
+
+    coins_counter_label=Label(root,text=level.score_info.coins)
+    coins_counter_label.place(x=695,y=0+ex)
+
+    goal_label=Label(root,text=level.score_info.goal)
+    goal_label.place(x=650,y=20+ex)
+
+    tries_label=Label(root,text="Tries:")
+    tries_label.place(x=650,y=40+ex)
+
+    tries_counter_label=Label(root,text=level.score_info.tries)
+    tries_counter_label.place(x=695,y=40+ex)
+
+    penalty_label=Label(root,text=level.score_info.penalty)
+    penalty_label.place(x=650,y=60+ex)
+
+    score_label=Label(root,text="Score:")
+    score_label.place(x=650,y=80+ex)
+
+    score_counter_label=Label(root,text=level.score_info.score)
+    score_counter_label.place(x=700,y=80+ex)
+
+    
+
+
+    
+
+    user_function=str(99999)     # make the original user function 'blank' to draw the grpah but avoid math errors for undefined function.
+    original_entry=""     
+    
+    graph_function(level)    
+
+    root.bind('<Return>',error_check)     # When user presses enter, it automatically graphs the function
+    
+    
+'''
+starts the zen level
+'''    
+def start_level_zen():     # Spawns graph with nodes randomly generated, then main window for function input and other display.
+
+    spawn_level_zen()
+    main(level)
+
+'''
+starts the journey levels
+'''
+def start_level_journey():      # Spawns graph with nodes with set seeds, then main window for function input and other display.
+
+    spawn_level1()
+    main(level)
+
+
+'''
+menu 1 to select journey levels
+'''
+def journey_menu1():
+    
+    journey_menu_canvas1=Canvas(root,bg="white",height=1200,width=875)     # New frame over the original menu frame.
+    journey_menu_canvas1.place(x=0,y=0)
+
+    back_button=Button(root,text="back",command=menu)
+    back_button.place(x=0,y=1000)
+
+    level1=Button(root,text="Level 1\nscore: "+str(L1.score_info.score)+"\n"+str(L1.score_info.grade),command=start_level_journey)     # Buttons labelled with level name and score and grade.
+    level1.place(x=200,y=200)
+
+    level2=Button(root,text="Level 2",command=start_level_journey)
+    level2.place(x=400,y=200)
+
+    level3=Button(root,text="Level 3",command=start_level_journey)
+    level3.place(x=600,y=200)
+
+    level3=Button(root,text="Level 4",command=start_level_journey)
+    level3.place(x=200,y=300)
+
+    level3=Button(root,text="Level 5",command=start_level_journey)
+    level3.place(x=400,y=300)
+
+    level3=Button(root,text="Level 6",command=start_level_journey)
+    level3.place(x=600,y=300)
+
+    level3=Button(root,text="Level 7",command=start_level_journey)
+    level3.place(x=200,y=400)
+
+    level3=Button(root,text="Level 8",command=start_level_journey)
+    level3.place(x=400,y=400)
+
+    level3=Button(root,text="Level 9",command=start_level_journey)
+    level3.place(x=600,y=400)
+
+    left_button=Button(root,text="<-",command=journey_menu1)
+    left_button.place(x=200,y=600)
+    left_button["state"]="disabled"     # Make left button disabled as the menu is already the 1st menu.
+
+    right_button=Button(root,text="->",command=journey_menu2)
+    right_button.place(x=600,y=600)
+
+
+
+'''
+menu 2 to select journey levels
+'''
+def journey_menu2():
+    
+    journey_menu_canvas2=Canvas(root,bg="white",height=1200,width=875)     # New frame over the original menu frame.
+    journey_menu_canvas2.place(x=0,y=0)
+
+    back_button=Button(root,text="back",command=menu)
+    back_button.place(x=0,y=1000)
+
+    level1=Button(root,text="Level 10",command=start_level_journey)     # Buttons labelled with level name and score.
+    level1.place(x=200,y=200)
+
+    level2=Button(root,text="Level 11",command=start_level_journey)
+    level2.place(x=400,y=200)
+
+    level3=Button(root,text="Level 12",command=start_level_journey)
+    level3.place(x=600,y=200)
+
+    level3=Button(root,text="Level 13",command=start_level_journey)
+    level3.place(x=200,y=300)
+
+    level3=Button(root,text="Level 14",command=start_level_journey)
+    level3.place(x=400,y=300)
+
+    level3=Button(root,text="Level 15",command=start_level_journey)
+    level3.place(x=600,y=300)
+
+    level3=Button(root,text="Level 16",command=start_level_journey)
+    level3.place(x=200,y=400)
+
+    level3=Button(root,text="Level 17",command=start_level_journey)
+    level3.place(x=400,y=400)
+
+    level3=Button(root,text="Level 18",command=start_level_journey)
+    level3.place(x=600,y=400)
+
+    left_button=Button(root,text="<-",command=journey_menu1)
+    left_button.place(x=200,y=600)
+
+    right_button=Button(root,text="->",command=journey_menu2)
+    right_button.place(x=600,y=600)
+    right_button["state"]="disabled"     # Make right button disabled as the menu is already the last menu.
+
+
+
+
+'''
+Settings menu
+'''
+def settings_menu():
+    global delete_top,music_button,delete_profile_button,music_button
+
+    if delete_top:     # Close delete account confirm window if previously opened and cancelled by player. 
+        delete_top.destroy()
+
+    settings_menu_canvas=Canvas(root,bg="white",height=1200,width=875)     # Frame over settings menu window.
+    settings_menu_canvas.place(x=0,y=0)
+
+    music_button=Button(root,text="Music: ON",command=music)     # Toggle music on/off.
+    music_button.place(x=400,y=100)
+
+    
+    delete_profile_button=Button(root,text="Delete Account",command=reset_data_window,fg="Red")     # Delete player's game info, reset json file back to default. 
+    delete_profile_button.place(x=400,y=300)
+
+    back_button=Button(root,text="back",command=menu)     # Back button; return to home menu.
+    back_button.place(x=0,y=1000)
+
+
+
+
+'''
+Credits menu
+'''
+def credits_menu():
+    credits_menu_canvas=Canvas(root,bg="white",height=1200,width=875)     # Frame over credits menu window.
+    credits_menu_canvas.place(x=0,y=0)
+
+    credits_label=Label(root,text="Game by Michael Yu\nProgram by Michael Yu\nMusic by Michael Yu\nGraphics by Michael Yu")     # Credit info ie. everything by me.
+    credits_label.place(x=350,y=100)
+
+    back_button=Button(root,text="back",command=menu)      # Back button; return to home menu.
+    back_button.place(x=0,y=1000)
+
+
+
+
+
+
+'''
+The window that first pops up when user opens up game, gives option to choose zen or journey mode.
+'''
+def menu():     # Main menu window, user selects levels etc. 
+    global name_entry,name_error,greet_label,name_button,journey_button,zen_button,new_player_top
+    L0.score_info.tries=L1.score_info.tries=-1     # Reset tries counter back to 0 when user finishes level and returns to menu. Starts at -1 because each time graph_function is run, it +=1 including initial time.
+
+    if goal_accomplished_top:     # delete previous 'player won' window when user leaves its level.
+        goal_accomplished_top.destroy()
+    if new_player_top:     # delete previous 'new player' window when user leaves its level.
+        new_player_top.destroy()
+
+
+    menu_canvas=Canvas(root,bg="white",height=1200,width=875)     # First frame to appear on main menu.
+    menu_canvas.place(x=0,y=0)
+    
+    
+    journey_button=Button(root,text="Journey",command=journey_menu1)     # Click this button to initiate the journey level.
+    journey_button.place(x=400,y=100)
+
+    zen_button=Button(root,text="Zen\nscore: "+str(L0.score_info.score)+"\n"+str(L0.score_info.grade),command=start_level_zen)     # Click this button to initiate the zen level, also display the score.
+    zen_button.place(x=400,y=200)
+
+    settings_button=Button(root,text="Settings",command=settings_menu)     # Game settings.
+    settings_button.place(x=400,y=400)
+
+    credits_button=Button(root,text="Credits",command=credits_menu)     # Game credits.
+    credits_button.place(x=400,y=500)
+    
+    greet_label=Label(root,text="New player detected.",fg="orange",bg="white")     # Greet the play on the home menu. 
+    greet_label.place(x=10,y=10)
+
+   
+    if tb.name =="":     # If the player name is blank ie. new player, go to the new player window.
+        new_player_window()
+        journey_button["state"]="disabled"     # Disable other buttons to let player enter name first. 
+        zen_button["state"]="disabled"
+        root.unbind('<Return>')     # Unbind the name enter button as player has already entered his name and is not needed anymore. 
+
+    else:
+        greet_label.config(text="Greetings, "+tb.name+".",fg="green")     # When player name has been entered, greet him. 
+   
+
+    root.title("Josad's Journey")
+    root.geometry("875x1200+0+0")
+    root.resizable(0,0)
+    root.mainloop()
+
+    
+    
+
+
+root = Tk()
+
+menu()
+
+
