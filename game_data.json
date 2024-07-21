@@ -5,6 +5,11 @@
             "difficulty": "Difficulty: MEDIUM"
         }
     ],
+    "Achievements": [
+        {
+            "6": false
+        }
+    ],
     "Zen": [
         {
             "score": 0,
