@@ -20,116 +20,135 @@
     ],
     "Zen": [
         {
-            "score": 99999,
-            "grade": "A+"
+            "score": 10876,
+            "grade": "C",
+            "solution": ""
         }
     ],
     "Journey - Level 1": [
         {
             "score": 185,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "x"
         }
     ],
     "Journey - Level 2": [
         {
             "score": 220,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "-x+11"
         }
     ],
     "Journey - Level 3": [
         {
             "score": 220,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "2/3*x-4"
         }
     ],
     "Journey - Level 4": [
         {
             "score": 255,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "1/5*x**2-9"
         }
     ],
     "Journey - Level 5": [
         {
             "score": 255,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "1.2**x"
         }
     ],
     "Journey - Level 6": [
         {
             "score": 220,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "20/x"
         }
     ],
     "Journey - Level 7": [
         {
             "score": 255,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "5*np.sqrt(x)"
         }
     ],
     "Journey - Level 8": [
         {
             "score": 255,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": " -x**3/72+2*x"
         }
     ],
     "Journey - Level 9": [
         {
             "score": 290,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "6*np.log(x+80)"
         }
     ],
     "Journey - Level 10": [
         {
             "score": 290,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "80*(1.1)**(-x**2/30)"
         }
     ],
     "Journey - Level 11": [
         {
             "score": 290,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "10*x**2/((x+100)*(x+10))"
         }
     ],
     "Journey - Level 12": [
         {
             "score": 915,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": " 28*np.cos((x+np.pi)/4"
         }
     ],
     "Journey - Level 13": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "2*np.sqrt(x**2-100)-80"
         }
     ],
     "Journey - Level 14": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "(x+70)*(x+10)*(x-20)*(x-60)/80000"
         }
     ],
     "Journey - Level 15": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "2300*np.sin(x/10-6)/(60-x)+120"
         }
     ],
     "Journey - Level 16": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "400*x**3/((x-20)*(x+20)*(x-40)*(x+40))-20"
         }
     ],
     "Journey - Level 17": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "np.sqrt(200**3+(x+200)**3)/13-100"
         }
     ],
     "Journey - Level 18": [
         {
             "score": 325,
-            "grade": "A+"
+            "grade": "A+",
+            "solution": "x**2/100-60*np.sin(x/15)"
         }
     ]
 }
