@@ -4,4 +4,4 @@ The folder "Draft 1", done during the 2 week holidays between terms 1 and 2, * i
 
 The folder "Draft 2", done during term 2 after holidays, will focus on developing the graphics and visually appealing user interface behind my game, maybe sticking with tkinter and matplotlib but maybe also incoporating pygame as tkinter becomes very ploddy and slow when running continuous systems, which impacts the aesthetics.
 
-My program includes music 'josad ost.mp3', which is included in my program.
+My program includes 2 original sound tracks both composed by me, 'josad ost.mp3' and 'zen ost.mp3'. 
