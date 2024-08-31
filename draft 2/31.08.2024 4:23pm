@@ -39,10 +39,6 @@ from sympy.abc import x, y, q     # Variables used to solve equations.
 from PIL import Image, ImageTk     # Use Pillow to import images. Pillow is the best method for doing this.
 import time     # Time.
 
-'''Below code ignores dpi scaling? Not sure if works'''
-import ctypes
-ctypes.windll.shcore.SetProcessDpiAwareness(1)
-
 plt.figure()     # For some reason I need to graph nothing then immediately close it otherwise matplotlib starts glitching.
 plt.close()
 
