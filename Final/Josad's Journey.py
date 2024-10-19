@@ -40,6 +40,9 @@ from PIL import Image, ImageTk     # Use Pillow to import images. Pillow is the 
 import time     # Time.
 
 
+#import ctypes
+#ctypes.windll.shcore.SetProcessDpiAwareness(0)
+
 
 plt.figure()     # For some reason I need to graph nothing then immediately close it otherwise matplotlib starts glitching.
 plt.close()
@@ -61,7 +64,7 @@ draw_canvas=True     # These variables that don't show up often so don't need to
 
 class tb:     # Make these things a class: Tubicle-Oasis so I don't have to global it everywhere.
 
-    WINDOW_HORIZONTAL_OFFSET=0     # Constant: the horizontal shift of all non-canvas type graphics e.g., tkinter labels, will have this constant shift as different devices have different screen lengths. (height isn't of concern).
+    WINDOW_HORIZONTAL_OFFSET=400     # Constant: the horizontal shift of all non-canvas type graphics e.g., tkinter labels, will have this constant shift as different devices have different screen lengths. (height isn't of concern).
         
     function_curve=None   # The variable assigned to the user's function being drawn, used to reconfigure its colour. 
     points_intersection=0     # If the curve has passed through start point and greenzone, passing through both=2, coins not needed.
@@ -118,7 +121,6 @@ class tb:     # Make these things a class: Tubicle-Oasis so I don't have to glob
     achievement_8=data["Achievements"][0]["8"]     # Achievement 8, minimalist.
     achievement_9=data["Achievements"][0]["9"]     # Achievement 9, dirty cheater. 
 
-
 '''
 All music code below:
 2 soundtracks: Josad OST for main background music,
@@ -143,7 +145,7 @@ def play_zenost_music():
 
 
 clicked_sfx = mixer.Sound(os.getcwd()+r"\Sounds\button click sfx.wav")     # Sound effect when button is clicked. 
-clicked_sfx.set_volume(0.7)     # Adjust volume. 
+clicked_sfx.set_volume(0.5)     # Adjust volume. 
 error_sfx = mixer.Sound(os.getcwd()+r"\Sounds\error sfx.wav")     # Error sound effect when player makes invalid input. 
 error_sfx.set_volume(0.4)      # Adjust volume. 
 level_complete_sfx = mixer.Sound(os.getcwd()+r"\Sounds\level complete sfx.wav")     # Level complete sound effect when player completes level.
@@ -251,7 +253,7 @@ def journey_coins_chance(level):
     for obj in level.coins:
         obj.chance=random.choices(boolean,weights=[tb.weights_true,tb.weights_false])[0]     # Respawn the chances of coins spawning for all coins in this specific level.
     if level==L12:
-        C12_diamond.chance=random.choices(boolean,weights=[1,5+tb.weights_false*5])[0]     # Respawn chances of diamond spawning in level 12. 
+        C12_diamond.chance=random.choices(boolean,weights=[2,5+tb.weights_false*5])[0]     # Respawn chances of diamond spawning in level 12. 
         if C12_diamond.chance==True:     # If diamond has spawned, add it to the list. 
             tb.coins_list12.append(C12_diamond)
 
@@ -348,7 +350,7 @@ C12_1=Node(-3,28,None)
 C12_2=Node(9,-28,None)
 C12_3=Node(22,28,None)
 C12_4=Node(35,-28,None)
-C12_diamond=Node(-17,-30,random.choices(boolean,weights=[1,5+tb.weights_false*5])[0])     # Small chance of diamond spawning in level 12.
+C12_diamond=Node(-17,-30,random.choices(boolean,weights=[2,5+tb.weights_false*5])[0])     # Small chance of diamond spawning in level 12.
 tb.coins_list12=[C12_1,C12_2,C12_3,C12_4] 
 if C12_diamond.chance==True:     # If diamond has spawned, add it to the list. 
     tb.coins_list12.append(C12_diamond)
@@ -811,6 +813,28 @@ def spawn_level(initial_level):
     main(level)     # Take player to main, where they interact with the graph.
 
 
+def tutorial_popup(level):
+    """ Gives player an instructions page on the side of level 1 or 2."""   
+    global tutorial_top
+
+    tutorial_top=Toplevel()   # Details for the tutorial window. 
+    tutorial_top.geometry("575x990+"+str(tb.WINDOW_HORIZONTAL_OFFSET+870)+"+60")     # Make this window open next to the main one.
+    tutorial_top.resizable(0,0)
+    tutorial_top.overrideredirect(True)     # Stop player from manipulating this window.
+    tutorial_top.attributes('-topmost', True)     # Make this window appear in front.
+
+    tutorial_top_canvas=Canvas(tutorial_top,bg="#f8eeda",height=1000,width=700, bd=0, highlightthickness=0)     # Canvas frame over tutorial window.
+    tutorial_top_canvas.place(x=0,y=0)
+
+    if level==L1:       # Background for tutorial 1 if player is on level 1. 
+        tutorial_image=tutorial1_background
+    elif level==L2:      # Background for tutorial 2 if player is on level 2. 
+        tutorial_image=tutorial2_background
+    elif level==L3:      # Background for tutorial 3 if player is on level 3. 
+        tutorial_image=tutorial3_background
+    
+    tutorial_top_canvas.create_image(0,0,image=tutorial_image,anchor='nw')   # display the tutorial instructions beside the main levels of 1, 2 and 3.
+
 
 
 def graph_function(level): 
@@ -827,7 +851,7 @@ def graph_function(level):
         Class: Returns the level class if player has accomplshed the level.
     """    
     
-    global fig,goal_accomplished_top,canvas,user_function,draw_canvas,ax,hint_button,hint_icon,coordinates_icon
+    global fig,goal_accomplished_top,canvas,user_function,draw_canvas,ax,hint_button,hint_icon,coordinates_icon,background_canvas
 
 
     for text in ax.texts:     # Remove coordinate text before reconfiguring them only the updated text appears. 
@@ -835,6 +859,13 @@ def graph_function(level):
    
     if goal_accomplished_top:     # Make sure only one of this top window apepars.
         goal_accomplished_top.destroy()
+
+    
+    if level==L1 or level==L2 or level==L3:     # If player is on level 1 or 2 of Journey, give them the tutorial page popup.
+        tutorial_popup(level)
+
+
+
     
     if level==L0:     # If the mode is zen, then plot all the preset randomly generated nodes, including start and coin nodes.
         plot_all()     # Replot the nodes that way they get set back to their original colour and calculations recheck if user function passes through these nodes still. 
@@ -1047,7 +1078,6 @@ def graph_function(level):
 
     canvas.draw()
 
-
     if level.score_info.goal == "Goal: Accomplished!":     # If the player has won the round, take him to the won round window. 
         return goal_accomplished_window(level)
 
@@ -1247,7 +1277,7 @@ def new_player_window():
 
     new_player_top=Toplevel()   # Details for the new player  window. 
     new_player_top.title("Greetings")
-    new_player_top.geometry("918x430+150+300")     # Make this window open next to the main one.
+    new_player_top.geometry("918x430+"+str(tb.WINDOW_HORIZONTAL_OFFSET+00)+"+580")     # Make this window open next to the main one.
     new_player_top.resizable(0,0)
     new_player_top.overrideredirect(True)     # Stop player from manipulating this window.
     new_player_top.attributes('-topmost', True)     # Make this window appear in front.
@@ -1276,8 +1306,8 @@ def goal_accomplished_window(level):
     Args:
         level (Class): Gives the current level class. 
     """    
-    global goal_accomplished_top,graph_button,main_canvas,coordinates_button,back_button,hint_button
-    
+    global goal_accomplished_top,graph_button,main_canvas,coordinates_button,back_button,hint_button,tutorial_top
+   
     mixer.Sound.play(level_complete_sfx)     # Sound effect when button is clicked. 
 
     main_canvas.tag_unbind(graph_button,"<Button-1>")
@@ -1289,9 +1319,13 @@ def goal_accomplished_window(level):
 
     root.unbind('<Return>')     # Temporarily unbind user pressing enter to graph function, this will be rebinded when user leaves level.
   
+    if level==L1 or level==L2 or level==L3:     # If the tutorial insrtuctions page image is showing, remove it. 
+        destroy_all_top()      # Close the tutorial page.
+
+
     goal_accomplished_top=Toplevel()   # Details for the win window. 
     goal_accomplished_top.title("You won!")
-    goal_accomplished_top.geometry("500x700+900+50")     # Make this window open next to the main one.
+    goal_accomplished_top.geometry("500x700+"+str(tb.WINDOW_HORIZONTAL_OFFSET+900)+"+50")     # Make this window open next to the main one.
     goal_accomplished_top.resizable(0,0)
     goal_accomplished_top.overrideredirect(True)     # Stop player from manipulating this window.
     goal_accomplished_top.attributes('-topmost', True)     # Make this window appear in front.
@@ -1333,8 +1367,8 @@ def goal_accomplished_window(level):
 
     if level==L12 and tb.diamond==True:     # If its lvl 12 and player has collected diamond, add bonus. 
         
-        diamond_label=Label(goal_accomplished_top,text="Diamond: Collected!     +500",bg="white",fg="purple",font=("Comic Sans MS", 20))
-        diamond_label.place(x=80,y=160)
+        diamond_label=Label(goal_accomplished_top,text="Diamond: Collected!    +500",bg="white",fg="purple",font=("Comic Sans MS", 20))
+        diamond_label.place(x=70,y=165)
         #diamond_bonus_label=Label(goal_accomplished_top,text="+555")
         #diamond_bonus_label.place(x=250,y=170)
         final_score+=555     # +555 points bonus.
@@ -1468,7 +1502,7 @@ def goal_accomplished_window(level):
 def quit_game(event=None):     # Quit game.
     mixer.Sound.play(clicked_sfx)     # Sound effect when button is clicked. 
     time.sleep(0.2)
-    exit()
+    root.destroy()
 
 
 def enter_name(event=None):
@@ -1525,7 +1559,7 @@ def reset_data_window(event=None):
     
     delete_top=Toplevel()   # Details for the win window. 
     delete_top.title("DELETE ACCOUNT")
-    delete_top.geometry("918x550+0+300")     # Make this window open next to the main one.
+    delete_top.geometry("918x550+"+str(tb.WINDOW_HORIZONTAL_OFFSET+00)+"+300")     # Make this window open next to the main one.
     delete_top.resizable(0,0)
     delete_top.overrideredirect(True)     # Stop player from manipulating this window.
     delete_top.attributes('-topmost', True)     # Make this window appear in front.
@@ -1704,8 +1738,10 @@ def max_save_data():     # Give player max save file in json.
        
         f_write.truncate(0)     # Clear current player data.
         json.dump(max_data,f_write,indent=4)     # Replace with max player data. 
-
-    exit()     # Close program.
+   
+    root.destroy()     # Close program.
+    exit()
+  
 
 
 def reset_data(event=None):     # Reset game data by resetting json file back to original. 
@@ -1874,7 +1910,7 @@ def reset_data(event=None):     # Reset game data by resetting json file back to
 
     mixer.Sound.play(clicked_sfx)     # Sound effect when button is clicked. 
     time.sleep(0.2)
-    exit()     # Close program.
+    root.destroy()     # Close program.
 
 
 def destroy_all_top():     # Quick function call when necessary. 
@@ -1957,6 +1993,8 @@ def main(level):
 
     root.bind('<Return>',error_check)     # When user presses enter, it automatically graphs the function (graph button).
     root.bind('<Escape>', action)     # When user presses escape, it returns him back to the previous menu (back button).
+    root.unbind('<Left>')
+    root.unbind('<Right>')
 
 
 def journey_level_info(level):     # Quick function to simplify writing level infos on journey menus 1 and 2 e.g., level 1, highscore: 180, A+ etc.
@@ -2336,7 +2374,7 @@ def achievement_notification():
 
     notification_top=Toplevel()   # Details for the win window. 
     notification_top.title("Achievement Unlocked!")
-    notification_top.geometry("655x299+900+780")     # Make this window open next to the main one.
+    notification_top.geometry("655x299+"+str(tb.WINDOW_HORIZONTAL_OFFSET+850)+"+780")     # Make this window open next to the main one.
     notification_top.resizable(0,0)
     notification_top.overrideredirect(True)     # Stop player from manipulating this window.
     notification_top.attributes('-topmost', True)     # Make this window appear in front.
@@ -2364,7 +2402,7 @@ def achievement_config(popup):
     
     achievements_top=Toplevel()   # Details for the win window. 
     achievements_top.title("Achievement")
-    achievements_top.geometry("650x924+900+100")     # Make this window open next to the main one.
+    achievements_top.geometry("650x924+"+str(tb.WINDOW_HORIZONTAL_OFFSET+855)+"+100")     # Make this window open next to the main one.
     achievements_top.resizable(0,0)
     achievements_top.overrideredirect(True)     # Stop player from manipulating this window.
     achievements_top.attributes('-topmost', True)     # Make this window appear in front.
@@ -2449,7 +2487,7 @@ def menu(event=None):     # Main menu window, user selects levels etc.
     Args:
         event (None): Defaults to None.
     """    
-    global name_entry,menu_canvas,name_error,greet_label,journey_button,zen_button,new_player_top,notification_top,tip_label
+    global name_entry,menu_canvas,name_error,greet_label,journey_button,zen_button,new_player_top,notification_top,tip_label,background_canvas
 
     background_canvas=Canvas(root,bg="#f8eeda",height=1100,width=3000, bd=0, highlightthickness=0)     # Have The grid background placed here. This will remain visible at all times (background) and is unchanged. 
     background_canvas.place(x=0,y=0)
@@ -2534,14 +2572,16 @@ def menu(event=None):     # Main menu window, user selects levels etc.
     root.title("Josad's Journey")     # Main window configurations.
     root.geometry("880x1040+0+0")
     #root.resizable(0,0)
-    #root.state('zoomed')
+    root.state('zoomed')
     root.focus_force()
     root.iconbitmap(os.getcwd()+r"\Icons\Josad's Journey Icon.ico")   # Josad's Journey logo for icon. 
+   
     root.mainloop()
     
 
 root = Tk()
-
+#root.tk.call('tk','scaling',2)
+print(root.winfo_fpixels("1i"))
 
 '''Load and setup all images''' 
 # These are at the end of the program because tkinter root window needs to be created first.
@@ -2777,6 +2817,16 @@ delete_image=ImageTk.PhotoImage(delete_button_image)
 
 cancel_button_image=Image.open(os.getcwd()+r"\Images\Cancel button.png").convert("RGBA")     # Button image.    
 cancel_image=ImageTk.PhotoImage(cancel_button_image)
+
+
+tutorial1_background_image=Image.open(os.getcwd()+r"\Images\tutorial1 background.png").convert("RGBA")        # Tutorial 1 background image.
+tutorial1_background=ImageTk.PhotoImage(tutorial1_background_image)
+
+tutorial2_background_image=Image.open(os.getcwd()+r"\Images\tutorial2 background.png").convert("RGBA")        # Tutorial 2 background image.
+tutorial2_background=ImageTk.PhotoImage(tutorial2_background_image)
+
+tutorial3_background_image=Image.open(os.getcwd()+r"\Images\tutorial3 background.png").convert("RGBA")        # Tutorial 2 background image.
+tutorial3_background=ImageTk.PhotoImage(tutorial3_background_image)
 
 
 menu()
